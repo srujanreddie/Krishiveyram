@@ -77,32 +77,36 @@ async function callGrokVision(
   mimeType: string,
   prompt: string
 ): Promise<any> {
-  const fullImageUrl = imageBase64.startsWith("data:")
-    ? imageBase64
-    : `data:${mimeType};base64,${imageBase64}`;
+  let cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, "").trim().replace(/[\r\n\s]+/g, "");
+  let cleanMime = mimeType || "image/jpeg";
+  if (cleanMime === "image/jpg") cleanMime = "image/jpeg";
+  const fullImageUrl = `data:${cleanMime};base64,${cleanBase64}`;
 
-  // Fetch available models or use comprehensive candidate list
+  // Fetch available models from xAI account or use standard vision candidate list
   const discoveredModels = await getAvailableXaiModels(apiKey);
   const visionCandidates = [
-    ...discoveredModels.filter((id) => id.includes("vision")),
-    ...discoveredModels,
-    "grok-2-vision",
-    "grok-vision-beta",
     "grok-2-vision-1212",
     "grok-2-vision-latest",
-    "grok-4-vision",
-    "grok-2",
-    "grok-beta",
+    "grok-2-vision",
+    "grok-vision-beta",
+    ...discoveredModels.filter((id) => id.toLowerCase().includes("vision")),
+    ...discoveredModels,
+    "grok-2-1212",
     "grok-2-latest",
+    "grok-2",
     "grok-3",
-    "grok-4",
+    "grok-3-mini",
+    "grok-beta",
   ];
 
   const uniqueModels = Array.from(new Set(visionCandidates));
 
   for (const model of uniqueModels) {
     try {
-      const response = await fetch("https://api.x.ai/v1/chat/completions", {
+      console.log(`[KrishiVeyra Grok Vision] Sending plant photo to model: ${model}`);
+
+      // Try with structured JSON mode first
+      let response = await fetch("https://api.x.ai/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -114,7 +118,7 @@ async function callGrokVision(
             {
               role: "system",
               content:
-                "You are KrishiVeyra, an elite agricultural plant pathologist and entomologist. Always respond in valid strict JSON matching the requested structure.",
+                "You are KrishiVeyra, an elite agricultural plant pathologist and entomologist. Always respond in valid strict JSON matching the requested structure without any conversational text.",
             },
             {
               role: "user",
@@ -133,12 +137,50 @@ async function callGrokVision(
             },
           ],
           response_format: { type: "json_object" },
-          temperature: 0.2,
+          temperature: 0.1,
         }),
       });
 
+      // If json_object mode not supported on specific model version, try standard
       if (!response.ok) {
-        // Skip silently to next candidate if model not enabled on this key
+        response = await fetch("https://api.x.ai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You are KrishiVeyra, an elite agricultural plant pathologist and entomologist. Return ONLY a valid JSON object.",
+              },
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "image_url",
+                    image_url: {
+                      url: fullImageUrl,
+                    },
+                  },
+                  {
+                    type: "text",
+                    text: prompt,
+                  },
+                ],
+              },
+            ],
+            temperature: 0.1,
+          }),
+        });
+      }
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.warn(`[KrishiVeyra Grok Vision] Model ${model} HTTP ${response.status}:`, errText.slice(0, 150));
         continue;
       }
 
@@ -146,10 +188,14 @@ async function callGrokVision(
       const rawText = data?.choices?.[0]?.message?.content;
       if (rawText) {
         const cleanJsonStr = rawText.replace(/```json\s*/gi, "").replace(/```\s*$/g, "").trim();
-        return JSON.parse(cleanJsonStr);
+        const parsed = JSON.parse(cleanJsonStr);
+        if (parsed && (parsed.cropName || parsed.diseaseOrPestName)) {
+          console.log(`[KrishiVeyra Grok Vision] Successfully diagnosed with Grok model: ${model}`);
+          return parsed;
+        }
       }
-    } catch {
-      // Try next candidate model
+    } catch (err: any) {
+      console.warn(`[KrishiVeyra Grok Vision] Error trying model ${model}:`, err?.message || err);
     }
   }
   return null;
@@ -164,13 +210,13 @@ async function callGrokChat(
 ): Promise<string | null> {
   const discoveredModels = await getAvailableXaiModels(apiKey);
   const chatCandidates = [
-    ...discoveredModels,
     "grok-2-latest",
+    "grok-2-1212",
     "grok-2",
     "grok-beta",
     "grok-3",
     "grok-3-mini",
-    "grok-4",
+    ...discoveredModels,
   ];
 
   const uniqueModels = Array.from(new Set(chatCandidates));
@@ -190,6 +236,7 @@ async function callGrokChat(
 
   for (const model of uniqueModels) {
     try {
+      console.log(`[KrishiVeyra Grok Chat] Querying xAI model: ${model}`);
       const response = await fetch("https://api.x.ai/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -204,16 +251,19 @@ async function callGrokChat(
       });
 
       if (!response.ok) {
+        const errText = await response.text();
+        console.warn(`[KrishiVeyra Grok Chat] Model ${model} HTTP ${response.status}:`, errText.slice(0, 150));
         continue;
       }
 
       const data = (await response.json()) as any;
       const reply = data?.choices?.[0]?.message?.content;
       if (reply) {
+        console.log(`[KrishiVeyra Grok Chat] Success with model: ${model}`);
         return reply;
       }
-    } catch {
-      // Try next candidate
+    } catch (err: any) {
+      console.warn(`[KrishiVeyra Grok Chat] Error on model ${model}:`, err?.message || err);
     }
   }
   return null;
@@ -1246,15 +1296,18 @@ app.post("/api/scan-plant", async (req: Request, res: Response) => {
     }
 
     // Extract exact mimeType and clean base64 data safely
-    let mimeType = providedMime;
+    let mimeType = providedMime || "image/jpeg";
+    if (mimeType === "image/jpg") mimeType = "image/jpeg";
+
     let cleanBase64 = imageBase64;
     const dataUrlMatch = imageBase64.match(/^data:([^;]+);base64,(.*)$/s);
     if (dataUrlMatch) {
-      mimeType = dataUrlMatch[1];
+      mimeType = dataUrlMatch[1] === "image/jpg" ? "image/jpeg" : dataUrlMatch[1];
       cleanBase64 = dataUrlMatch[2];
     } else {
       cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
     }
+    cleanBase64 = cleanBase64.trim().replace(/[\r\n\s]+/g, "");
 
     const grokKey = getGrokApiKey();
     const ai = getGeminiClient();
@@ -1482,44 +1535,66 @@ Output STRICT JSON conforming to the schema.`;
       };
 
       const candidateModels = [
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-2.0-flash",
         "gemini-3.7-flash",
         "gemini-3.1-flash-lite",
       ];
 
+      const imagePart = {
+        inlineData: {
+          mimeType: mimeType,
+          data: cleanBase64,
+        },
+      };
+      const textPart = {
+        text: prompt,
+      };
+
       for (const modelName of candidateModels) {
         try {
-          const response = await ai.models.generateContent({
-            model: modelName,
-            contents: [
-              {
-                parts: [
-                  {
-                    inlineData: {
-                      mimeType: mimeType,
-                      data: cleanBase64,
-                    },
-                  },
-                  { text: prompt },
-                ],
-              },
-            ],
-            config: {
-              responseMimeType: "application/json",
-              responseSchema: responseSchemaConfig,
-            },
-          });
+          console.log(`[KrishiVeyra AI] Analyzing plant photo with Gemini model: ${modelName}`);
 
-          const textOutput = response.text;
-          if (textOutput) {
-            const parsed = JSON.parse(textOutput);
-            const diagnosisResult = normalizeDiagnosisPayload(parsed, imageBase64, mimeType, farmerNotes);
-            return res.json({ success: true, result: diagnosisResult, source: modelName });
+          let textOutput: string | undefined;
+
+          // Try with structured schema first
+          try {
+            const response = await ai.models.generateContent({
+              model: modelName,
+              contents: {
+                parts: [imagePart, textPart],
+              },
+              config: {
+                responseMimeType: "application/json",
+                responseSchema: responseSchemaConfig,
+                temperature: 0.1,
+              },
+            });
+            textOutput = response.text;
+          } catch (schemaErr: any) {
+            console.warn(`[KrishiVeyra AI] Schema mode note for ${modelName}, retrying with standard JSON config:`, schemaErr?.message || schemaErr);
+            const response2 = await ai.models.generateContent({
+              model: modelName,
+              contents: {
+                parts: [imagePart, textPart],
+              },
+              config: {
+                responseMimeType: "application/json",
+                temperature: 0.1,
+              },
+            });
+            textOutput = response2.text;
           }
-        } catch {
-          // Continue to next model or fallback engine
+
+          if (textOutput) {
+            const cleanJsonStr = textOutput.replace(/```json\s*/gi, "").replace(/```\s*$/g, "").trim();
+            const parsed = JSON.parse(cleanJsonStr);
+            if (parsed && (parsed.cropName || parsed.diseaseOrPestName)) {
+              const diagnosisResult = normalizeDiagnosisPayload(parsed, imageBase64, mimeType, farmerNotes);
+              console.log(`[KrishiVeyra AI] Vision scan success: ${diagnosisResult.cropName} - ${diagnosisResult.diseaseOrPestName}`);
+              return res.json({ success: true, result: diagnosisResult, source: modelName });
+            }
+          }
+        } catch (modelErr: any) {
+          console.warn(`[KrishiVeyra AI] Model ${modelName} vision call notice:`, modelErr?.message || modelErr);
         }
       }
     }
@@ -1791,9 +1866,6 @@ Farmer's Message:
 
       // Try primary model then secondary model if rate limit / 429 quota occurs
       const candidateModels = [
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-2.0-flash",
         "gemini-3.7-flash",
         "gemini-3.1-flash-lite",
       ];
@@ -1803,6 +1875,9 @@ Farmer's Message:
           const response = await ai.models.generateContent({
             model: modelName,
             contents: prompt,
+            config: {
+              temperature: 0.3,
+            },
           });
 
           const replyText = response.text;
