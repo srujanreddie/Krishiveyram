@@ -1,0 +1,6 @@
+{
+  "name": "KrishiVeyra - Farmer Digital Assistant",
+  "description": "Accessible digital assistant for farmers featuring AI plant doctor scanner, visual medicine guide, weather danger alarms, expert helpline, and farm diary.",
+  "requestFramePermissions": ["camera", "microphone", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
