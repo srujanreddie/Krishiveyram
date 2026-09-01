@@ -17,6 +17,7 @@ import {
   Sunrise,
   Sunset,
   Share2,
+  Camera,
 } from 'lucide-react';
 import { PlantDiagnosisResult, StepByStepRemedy } from '../types';
 import { SupportedLanguage, UI_TEXTS } from '../utils/translations';
@@ -144,9 +145,88 @@ export const StepByStepMedicineGuide: React.FC<StepByStepMedicineGuideProps> = (
         'Reduced photosynthetic vigor on affected crop canopy',
       ];
 
+  const isNonPlant =
+    (diagnosis?.cropName || '').toLowerCase().includes('non-plant') ||
+    (diagnosis?.diseaseOrPestName || '').toLowerCase().includes('no plant foliage') ||
+    (diagnosis?.diseaseOrPestName || '').toLowerCase().includes('invalid image');
+
+  const isHealthy =
+    (diagnosis?.diseaseOrPestName || '').toLowerCase().includes('healthy') ||
+    (diagnosis?.diseaseOrPestName || '').toLowerCase().includes('स्वस्थ');
+
   return (
     <div className="space-y-4 pb-24 max-w-4xl mx-auto animate-in fade-in duration-200">
+      {/* Non-Plant Alert Banner if applicable */}
+      {isNonPlant ? (
+        <div className="bg-amber-50 rounded-3xl p-6 border-2 border-amber-300 shadow-sm text-slate-900 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="p-3 bg-amber-200 text-amber-900 rounded-2xl">
+              <AlertTriangle className="w-7 h-7" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-xl font-black text-amber-950 font-['Outfit']">
+                No Crop Leaf or Plant Foliage Detected
+              </h2>
+              <p className="text-sm text-amber-900 font-medium">
+                {diagnosis.causeExplanation ||
+                  'The uploaded photograph does not appear to show a crop leaf. For accurate diagnosis and dosage, please capture a close-up photo of an active crop leaf.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white/80 rounded-2xl p-4 border border-amber-200 space-y-2">
+            <div className="text-xs font-bold uppercase tracking-wider text-amber-950">
+              📸 Tips for High Accuracy Photo Diagnosis:
+            </div>
+            <ul className="text-xs space-y-1 text-slate-700 list-disc list-inside">
+              <li>Place the affected leaf flat on your palm or hold steady in natural daylight.</li>
+              <li>Ensure the camera is 15-20 cm away from the leaf so leaf veins and spots are clear.</li>
+              <li>Avoid extreme back-light or blurry shadows.</li>
+            </ul>
+          </div>
+
+          <button
+            onClick={onRescan}
+            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black rounded-2xl text-sm shadow-md flex items-center justify-center gap-2 transition"
+          >
+            <Camera className="w-5 h-5" />
+            <span>Take New Close-up Photo of Crop Leaf</span>
+          </button>
+        </div>
+      ) : isHealthy ? (
+        /* Healthy Crop Foliage Card */
+        <div className="bg-emerald-50 rounded-3xl p-5 border-2 border-emerald-300 shadow-sm text-slate-900 space-y-3">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <img
+              src={diagnosis.imageUrl}
+              alt={diagnosis.cropName}
+              referrerPolicy="no-referrer"
+              className="w-full sm:w-28 h-36 sm:h-28 rounded-2xl object-cover border-2 border-emerald-500 shadow-md shrink-0"
+            />
+            <div className="flex-1 space-y-1">
+              <div className="inline-flex items-center gap-1.5 bg-emerald-200 text-emerald-950 text-xs font-black px-3 py-1 rounded-full uppercase">
+                <ShieldCheck className="w-4 h-4 text-emerald-800" />
+                <span>100% Healthy Crop Detected</span>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-black text-emerald-950 font-['Outfit']">
+                {diagnosis.diseaseOrPestName}
+              </h1>
+              <p className="text-xs text-emerald-800 font-medium">
+                {diagnosis.causeExplanation || 'Zero fungal lesions, chlorosis, or insect pest vectors detected.'}
+              </p>
+            </div>
+            <button
+              onClick={onRescan}
+              className="px-3.5 py-2.5 bg-white hover:bg-slate-100 text-slate-800 font-bold rounded-xl text-xs border border-slate-300 shadow-xs"
+            >
+              Scan Another Leaf
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {/* Top Diagnosis Card */}
+      {!isNonPlant && (
       <div className="bg-white rounded-3xl p-4 sm:p-5 border-2 border-slate-200 shadow-sm relative overflow-hidden">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
           <img
@@ -229,6 +309,7 @@ export const StepByStepMedicineGuide: React.FC<StepByStepMedicineGuideProps> = (
           </div>
         </div>
       </div>
+      )}
 
       {/* Remedy Selector: Chemical vs Organic */}
       <div className="flex bg-slate-200/80 p-1.5 rounded-2xl gap-1">
