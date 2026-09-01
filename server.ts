@@ -40,10 +40,14 @@ function getGrokApiKey(): string | null {
 
 let cachedXaiModels: string[] | null = null;
 let lastXaiModelsFetch = 0;
+let xaiCooldownUntil = 0;
 
 // Dynamically fetch available models from xAI account
 async function getAvailableXaiModels(apiKey: string): Promise<string[]> {
   const now = Date.now();
+  if (now < xaiCooldownUntil) {
+    return [];
+  }
   if (cachedXaiModels && now - lastXaiModelsFetch < 300000) {
     return cachedXaiModels;
   }
@@ -63,6 +67,14 @@ async function getAvailableXaiModels(apiKey: string): Promise<string[]> {
           return modelIds;
         }
       }
+    } else {
+      const errStatus = res.status;
+      if (errStatus === 401 || errStatus === 402 || errStatus === 403) {
+        // xAI account has no active credits or key is invalid
+        xaiCooldownUntil = now + 300000;
+        console.log(`[KrishiVeyra xAI Note] xAI API key requires active team credits or authorization (HTTP ${errStatus}). Falling back smoothly to Gemini & offline agronomy engine.`);
+        return [];
+      }
     }
   } catch (err: any) {
     console.warn("xAI model discovery notice:", err?.message || err);
@@ -77,6 +89,11 @@ async function callGrokVision(
   mimeType: string,
   prompt: string
 ): Promise<any> {
+  const now = Date.now();
+  if (now < xaiCooldownUntil) {
+    return null;
+  }
+
   let cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, "").trim().replace(/[\r\n\s]+/g, "");
   let cleanMime = mimeType || "image/jpeg";
   if (cleanMime === "image/jpg") cleanMime = "image/jpeg";
@@ -84,26 +101,25 @@ async function callGrokVision(
 
   // Fetch available models from xAI account or use standard vision candidate list
   const discoveredModels = await getAvailableXaiModels(apiKey);
-  const visionCandidates = [
-    "grok-2-vision-1212",
-    "grok-2-vision-latest",
-    "grok-2-vision",
-    "grok-vision-beta",
-    ...discoveredModels.filter((id) => id.toLowerCase().includes("vision")),
-    ...discoveredModels,
-    "grok-2-1212",
-    "grok-2-latest",
-    "grok-2",
-    "grok-3",
-    "grok-3-mini",
-    "grok-beta",
-  ];
+  if (now < xaiCooldownUntil) {
+    return null;
+  }
+
+  const visionCandidates = discoveredModels.length > 0
+    ? discoveredModels
+    : [
+        "grok-2-vision-1212",
+        "grok-2-vision",
+        "grok-vision-beta",
+        "grok-3",
+        "grok-3-mini",
+      ];
 
   const uniqueModels = Array.from(new Set(visionCandidates));
 
   for (const model of uniqueModels) {
     try {
-      console.log(`[KrishiVeyra Grok Vision] Sending plant photo to model: ${model}`);
+      console.log(`[KrishiVeyra Grok Vision] Querying model: ${model}`);
 
       // Try with structured JSON mode first
       let response = await fetch("https://api.x.ai/v1/chat/completions", {
@@ -142,7 +158,7 @@ async function callGrokVision(
       });
 
       // If json_object mode not supported on specific model version, try standard
-      if (!response.ok) {
+      if (!response.ok && response.status !== 401 && response.status !== 402 && response.status !== 403) {
         response = await fetch("https://api.x.ai/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -179,8 +195,12 @@ async function callGrokVision(
       }
 
       if (!response.ok) {
-        const errText = await response.text();
-        console.warn(`[KrishiVeyra Grok Vision] Model ${model} HTTP ${response.status}:`, errText.slice(0, 150));
+        const errStatus = response.status;
+        if (errStatus === 401 || errStatus === 402 || errStatus === 403) {
+          xaiCooldownUntil = Date.now() + 300000;
+          console.log(`[KrishiVeyra xAI Note] xAI requires active team credits (HTTP ${errStatus}). Falling back immediately to Gemini / offline engine.`);
+          break; // Stop querying other models on unfunded/unauthorized key
+        }
         continue;
       }
 
@@ -195,7 +215,7 @@ async function callGrokVision(
         }
       }
     } catch (err: any) {
-      console.warn(`[KrishiVeyra Grok Vision] Error trying model ${model}:`, err?.message || err);
+      console.warn(`[KrishiVeyra Grok Vision] Model check note (${model}):`, err?.message || err);
     }
   }
   return null;
@@ -208,16 +228,25 @@ async function callGrokChat(
   userMessage: string,
   history: Array<{ sender: string; text: string }> = []
 ): Promise<string | null> {
+  const now = Date.now();
+  if (now < xaiCooldownUntil) {
+    return null;
+  }
+
   const discoveredModels = await getAvailableXaiModels(apiKey);
-  const chatCandidates = [
-    "grok-2-latest",
-    "grok-2-1212",
-    "grok-2",
-    "grok-beta",
-    "grok-3",
-    "grok-3-mini",
-    ...discoveredModels,
-  ];
+  if (now < xaiCooldownUntil) {
+    return null;
+  }
+
+  const chatCandidates = discoveredModels.length > 0
+    ? discoveredModels
+    : [
+        "grok-2-1212",
+        "grok-3",
+        "grok-3-mini",
+        "grok-2",
+        "grok-beta",
+      ];
 
   const uniqueModels = Array.from(new Set(chatCandidates));
 
@@ -251,8 +280,12 @@ async function callGrokChat(
       });
 
       if (!response.ok) {
-        const errText = await response.text();
-        console.warn(`[KrishiVeyra Grok Chat] Model ${model} HTTP ${response.status}:`, errText.slice(0, 150));
+        const errStatus = response.status;
+        if (errStatus === 401 || errStatus === 402 || errStatus === 403) {
+          xaiCooldownUntil = Date.now() + 300000;
+          console.log(`[KrishiVeyra xAI Note] xAI requires active team credits (HTTP ${errStatus}). Falling back immediately to Gemini / offline engine.`);
+          break; // Stop querying other models on unfunded/unauthorized key
+        }
         continue;
       }
 
@@ -263,7 +296,7 @@ async function callGrokChat(
         return reply;
       }
     } catch (err: any) {
-      console.warn(`[KrishiVeyra Grok Chat] Error on model ${model}:`, err?.message || err);
+      console.warn(`[KrishiVeyra Grok Chat] Model note on ${model}:`, err?.message || err);
     }
   }
   return null;
@@ -1314,21 +1347,41 @@ app.post("/api/scan-plant", async (req: Request, res: Response) => {
 
     // 1. If Grok API key is configured, run Grok Vision analysis
     if (grokKey) {
-      const grokPrompt = `You are KrishiVeyra, an elite agricultural plant pathologist, botanist, and entomologist.
-Analyze this plant / leaf / pest photo with 100% botanical accuracy.
+      const grokPrompt = `You are KrishiVeyra (कृषिवेयरा), the world's most authoritative AI Plant Pathologist, Botanical Agronomist, and Entomologist trained on ICAR, IRRI, CIMMYT, CIBRC, and FAO agronomic frameworks.
+Your mission: Provide 100% scientifically accurate crop diagnostic prescriptions for farmers, smallholders, and agronomists.
 
-CRITICAL INSTRUCTIONS TO AVOID MISMATCH:
-1. Prioritize visual evidence in the image: Inspect the exact leaf architecture, venation pattern, leaf margin, stem, fruit, lesion shape, color, pustules, fungal mycelium, or insect pests.
-2. The user provided crop hint: "${cropHint || 'Auto-Detect Crop'}". Note that this is only an optional hint; if the image shows a different plant species or crop (e.g. Potato, Corn, Apple, Cotton, Rice, Wheat, Chilli, Brinjal, Citrus, etc.), identify the TRUE crop shown in the image.
-3. If the foliage is completely healthy with no disease symptoms, identify it accurately as "Healthy Foliage (No Disease Detected)" with low severity and preventive care advice.
-4. Farmer notes: "${farmerNotes || 'None'}".
-5. Language for names and advice: "${language}".
+======================================================================
+CORE KNOWLEDGE BASE & BOTANICAL IDENTIFICATION RULES:
+======================================================================
+1. SPECIES IDENTIFICATION (Visual Morphology):
+   - Solanaceae: Potato (compound pinnate leaves, dark/water-soaked lesions = Late Blight Phytophthora infestans; concentric target rings = Early Blight Alternaria solani), Tomato (toothed leaves, target board spots, curl virus), Chilli/Pepper (elliptical leaves, upward curl = thrips, downward curl = mites), Brinjal/Eggplant (broad lobed leaves, wilting shoots = Leucinodes orbonalis borer).
+   - Poaceae / Cereals: Rice/Paddy (linear leaves, spindle lesions with gray center = Blast Magnaporthe oryzae; wavy lesions = Bacterial Blight Xanthomonas oryzae), Wheat (parallel venation, linear orange-yellow powdery stripes = Stripe Rust Puccinia striiformis), Corn/Maize (broad parallel leaves, ragged whorl holes with frass = Fall Armyworm Spodoptera frugiperda).
+   - Malvaceae: Cotton (palmate lobed leaves, leaf curling with whiteflies on undersides = Bemisia tabaci / CLCuV; square damage = bollworm).
+   - Fabaceae: Soybean (trifoliate leaves, bright yellow mosaic patches = Yellow Mosaic Virus; semilooper chewing).
+   - Allium: Onion & Garlic (tubular hollow leaves, purplish sunken blotches = Alternaria porri, silver streaks = Thrips tabaci).
+   - Crucifers: Mustard (lobed basal leaves, dense greenish-black aphid clusters on inflorescence = Lipaphis erysimi).
+
+2. CROP HINT VALIDATION:
+   - Farmer crop hint provided: "${cropHint || 'Auto-Detect Crop'}".
+   - If the visual evidence clearly shows a different plant or tree, TRUST THE VISUAL EVIDENCE and diagnose the TRUE plant in the photo.
+   - If image is non-agricultural (human, vehicle, room, animal), set cropName to "Non-Plant Image Detected" and diseaseOrPestName to "Please upload a clear plant leaf or crop photo".
+
+3. HEALTHY FOLIAGE RECOGNITION:
+   - If the leaf is vibrant green, turgid, with clean margins and no lesions/pustules/pests, diagnose as "Healthy Crop Foliage (No Disease Detected)" with low severity, 99% confidence, and preventive bio-stimulant tonic maintenance.
+
+4. CIBRC & ICAR COMPLIANT DOSAGES & KNAPSACK RATIOS:
+   - Every prescription MUST include exact 15-Liter knapsack tank measurements (tea-spoons and ml/g), per-liter concentrations, and per-acre (in 150-200L water) dilutions.
+   - Always provide both (A) Registered Standard Formulation and (B) 100% Eco-Friendly Bio-Organic Alternative (e.g. Neem Oil 10,000 PPM, Trichoderma, Pseudomonas fluorescens).
+   - Always provide exact harvest waiting period (PHI days) and weather/safety spray rules.
+
+Farmer Notes: "${farmerNotes || 'None'}".
+Target Output Language: "${language}".
 
 Return STRICT JSON matching this exact schema:
 {
-  "cropName": "Exact crop name (with common and local names)",
+  "cropName": "Exact crop name (with common and local names in Hindi/regional language)",
   "diseaseOrPestName": "Precise disease or pest name (or Healthy Foliage if no pathogen)",
-  "scientificName": "Scientific name of crop and pathogen/pest",
+  "scientificName": "Scientific binomial name of pathogen/pest & crop",
   "affectedPart": "leaf" | "stem" | "fruit" | "root" | "whole_plant",
   "severity": "low" | "moderate" | "severe",
   "confidenceScore": 95,
@@ -1406,16 +1459,35 @@ Return STRICT JSON matching this exact schema:
 
     // 2. Multimodal visual analysis with Gemini
     if (ai) {
-      const prompt = `You are KrishiVeyra, an elite agricultural plant pathologist, botanist, and entomologist providing precise diagnostic prescriptions for farmers.
-Carefully examine this plant / leaf / crop pest image.
+      const prompt = `You are KrishiVeyra (कृषिवेयरा), the world's most authoritative AI Plant Pathologist, Botanical Agronomist, and Entomologist trained on ICAR, IRRI, CIMMYT, CIBRC, and FAO agronomic frameworks.
+Your mission: Provide 100% scientifically accurate crop diagnostic prescriptions for farmers, smallholders, and agronomists.
 
-CRITICAL INSTRUCTIONS FOR PERFECT DIAGNOSTIC MATCH:
-1. Examine the visual evidence in the image first and foremost (leaf architecture, leaf shape, venation, lesions, pustules, leaf spots, insect pests, powdery mildew, downy mildew, leaf curl, wilting, or healthy chlorophyll).
-2. Farmer crop hint provided: "${cropHint || 'Auto-Detect Crop'}". If the photo clearly depicts a different crop or plant, diagnose the ACTUAL crop species shown in the image.
-3. Accurately identify the exact plant disease, fungal/bacterial pathogen, virus, or pest species. If the plant is completely healthy, indicate "Healthy Foliage (No Disease Detected)" with low severity and routine crop vigor maintenance.
-4. Provide precise, actionable knapsack backpack sprayer dilution measurements (per 1 Liter, per 15-Liter knapsack tank, and per acre) with both standard approved chemical and bio-organic remedies.
-5. Farmer observations: "${farmerNotes || 'None'}".
-6. Target language: "${language}".
+======================================================================
+CORE KNOWLEDGE BASE & BOTANICAL IDENTIFICATION RULES:
+======================================================================
+1. SPECIES IDENTIFICATION (Visual Morphology):
+   - Solanaceae: Potato (compound pinnate leaves, dark/water-soaked lesions = Late Blight Phytophthora infestans; concentric target rings = Early Blight Alternaria solani), Tomato (toothed leaves, target board spots, curl virus), Chilli/Pepper (elliptical leaves, upward curl = thrips, downward curl = mites), Brinjal/Eggplant (broad lobed leaves, wilting shoots = Leucinodes orbonalis borer).
+   - Poaceae / Cereals: Rice/Paddy (linear leaves, spindle lesions with gray center = Blast Magnaporthe oryzae; wavy lesions = Bacterial Blight Xanthomonas oryzae), Wheat (parallel venation, linear orange-yellow powdery stripes = Stripe Rust Puccinia striiformis), Corn/Maize (broad parallel leaves, ragged whorl holes with frass = Fall Armyworm Spodoptera frugiperda).
+   - Malvaceae: Cotton (palmate lobed leaves, leaf curling with whiteflies on undersides = Bemisia tabaci / CLCuV; square damage = bollworm).
+   - Fabaceae: Soybean (trifoliate leaves, bright yellow mosaic patches = Yellow Mosaic Virus; semilooper chewing).
+   - Allium: Onion & Garlic (tubular hollow leaves, purplish sunken blotches = Alternaria porri, silver streaks = Thrips tabaci).
+   - Crucifers: Mustard (lobed basal leaves, dense greenish-black aphid clusters on inflorescence = Lipaphis erysimi).
+
+2. CROP HINT VALIDATION:
+   - Farmer crop hint provided: "${cropHint || 'Auto-Detect Crop'}".
+   - If the visual evidence clearly shows a different plant or tree, TRUST THE VISUAL EVIDENCE and diagnose the TRUE plant in the photo.
+   - If image is non-agricultural (human, vehicle, room, animal), set cropName to "Non-Plant Image Detected" and diseaseOrPestName to "Please upload a clear plant leaf or crop photo".
+
+3. HEALTHY FOLIAGE RECOGNITION:
+   - If the leaf is vibrant green, turgid, with clean margins and no lesions/pustules/pests, diagnose as "Healthy Crop Foliage (No Disease Detected)" with low severity, 99% confidence, and preventive bio-stimulant tonic maintenance.
+
+4. CIBRC & ICAR COMPLIANT DOSAGES & KNAPSACK RATIOS:
+   - Every prescription MUST include exact 15-Liter knapsack tank measurements (tea-spoons and ml/g), per-liter concentrations, and per-acre (in 150-200L water) dilutions.
+   - Always provide both (A) Registered Standard Formulation and (B) 100% Eco-Friendly Bio-Organic Alternative (e.g. Neem Oil 10,000 PPM, Trichoderma, Pseudomonas fluorescens).
+   - Always provide exact harvest waiting period (PHI days) and weather/safety spray rules.
+
+Farmer Notes: "${farmerNotes || 'None'}".
+Target Output Language: "${language}".
 
 Output STRICT JSON conforming to the schema.`;
 
@@ -1537,6 +1609,9 @@ Output STRICT JSON conforming to the schema.`;
       const candidateModels = [
         "gemini-3.7-flash",
         "gemini-3.1-flash-lite",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
       ];
 
       const imagePart = {
@@ -1544,9 +1619,6 @@ Output STRICT JSON conforming to the schema.`;
           mimeType: mimeType,
           data: cleanBase64,
         },
-      };
-      const textPart = {
-        text: prompt,
       };
 
       for (const modelName of candidateModels) {
@@ -1559,9 +1631,7 @@ Output STRICT JSON conforming to the schema.`;
           try {
             const response = await ai.models.generateContent({
               model: modelName,
-              contents: {
-                parts: [imagePart, textPart],
-              },
+              contents: [imagePart, prompt],
               config: {
                 responseMimeType: "application/json",
                 responseSchema: responseSchemaConfig,
@@ -1570,18 +1640,27 @@ Output STRICT JSON conforming to the schema.`;
             });
             textOutput = response.text;
           } catch (schemaErr: any) {
-            console.warn(`[KrishiVeyra AI] Schema mode note for ${modelName}, retrying with standard JSON config:`, schemaErr?.message || schemaErr);
-            const response2 = await ai.models.generateContent({
-              model: modelName,
-              contents: {
-                parts: [imagePart, textPart],
-              },
-              config: {
-                responseMimeType: "application/json",
-                temperature: 0.1,
-              },
-            });
-            textOutput = response2.text;
+            const errMsg = String(schemaErr?.message || schemaErr);
+            // If the model is experiencing high demand (503), rate limit (429), or unavailable, pass to next model immediately
+            if (errMsg.includes("503") || errMsg.includes("UNAVAILABLE") || errMsg.includes("high demand") || errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED")) {
+              console.log(`[KrishiVeyra AI] Model ${modelName} is temporarily busy (${errMsg.slice(0, 100)}...), trying next available model.`);
+              continue;
+            }
+
+            // Otherwise, if it's a schema formatting issue, retry with standard JSON mode on this model
+            try {
+              const response2 = await ai.models.generateContent({
+                model: modelName,
+                contents: [imagePart, prompt],
+                config: {
+                  responseMimeType: "application/json",
+                  temperature: 0.1,
+                },
+              });
+              textOutput = response2.text;
+            } catch (fallbackModelErr: any) {
+              console.log(`[KrishiVeyra AI] Standard JSON retry note for ${modelName}:`, fallbackModelErr?.message?.slice(0, 120) || fallbackModelErr);
+            }
           }
 
           if (textOutput) {
@@ -1594,14 +1673,15 @@ Output STRICT JSON conforming to the schema.`;
             }
           }
         } catch (modelErr: any) {
-          console.warn(`[KrishiVeyra AI] Model ${modelName} vision call notice:`, modelErr?.message || modelErr);
+          console.log(`[KrishiVeyra AI] Model ${modelName} vision note:`, modelErr?.message?.slice(0, 120) || modelErr);
         }
       }
     }
 
     // 3. Intelligent High-Precision Agronomy Rules Engine
-    // Tailored botanical pathology profiles for major agricultural crops
-    const lowerCrop = (cropHint || "").toLowerCase();
+    // Tailored botanical pathology profiles for major agricultural crops with symptom-matching
+    const combinedContext = `${cropHint} ${farmerNotes}`.toLowerCase();
+    
     let cropName = "Tomato (टमाटर / Solanum lycopersicum)";
     let diseaseOrPestName = "Early Blight & Target Leaf Spot (Alternaria solani)";
     let scientificName = "Alternaria solani";
@@ -1618,7 +1698,7 @@ Output STRICT JSON conforming to the schema.`;
     let perAcre = "500-600 grams in 200 Liters of water per acre";
     let waitingDays = 3;
 
-    if (lowerCrop.includes("rice") || lowerCrop.includes("paddy") || lowerCrop.includes("धान")) {
+    if (combinedContext.includes("rice") || combinedContext.includes("paddy") || combinedContext.includes("धान") || combinedContext.includes("blast")) {
       cropName = "Rice / Paddy (धान / Oryza sativa)";
       diseaseOrPestName = "Paddy Leaf Blast (Magnaporthe oryzae)";
       scientificName = "Magnaporthe oryzae";
@@ -1634,7 +1714,7 @@ Output STRICT JSON conforming to the schema.`;
       mixingPer15L = "9 - 10 grams (2 teaspoons) in 15L Knapsack Tank";
       perAcre = "120-150 grams in 200 Liters water per acre";
       waitingDays = 15;
-    } else if (lowerCrop.includes("cotton") || lowerCrop.includes("कपास")) {
+    } else if (combinedContext.includes("cotton") || combinedContext.includes("कपास") || combinedContext.includes("whitefly")) {
       cropName = "Cotton (कपास / Gossypium hirsutum)";
       diseaseOrPestName = "Whitefly & Sucking Pest Complex (Bemisia tabaci)";
       scientificName = "Bemisia tabaci";
@@ -1650,7 +1730,7 @@ Output STRICT JSON conforming to the schema.`;
       mixingPer15L = "20 grams in 15L Knapsack Tank";
       perAcre = "250 grams in 200 Liters water per acre";
       waitingDays = 7;
-    } else if (lowerCrop.includes("wheat") || lowerCrop.includes("गेहूं")) {
+    } else if (combinedContext.includes("wheat") || combinedContext.includes("गेहूं") || combinedContext.includes("rust")) {
       cropName = "Wheat (गेहूं / Triticum aestivum)";
       diseaseOrPestName = "Yellow / Stripe Rust (Puccinia striiformis)";
       scientificName = "Puccinia striiformis f. sp. tritici";
@@ -1666,7 +1746,7 @@ Output STRICT JSON conforming to the schema.`;
       mixingPer15L = "15 ml in 15L Knapsack Tank";
       perAcre = "200 ml in 200 Liters water per acre";
       waitingDays = 25;
-    } else if (lowerCrop.includes("chilli") || lowerCrop.includes("pepper") || lowerCrop.includes("मिर्च")) {
+    } else if (combinedContext.includes("chilli") || combinedContext.includes("pepper") || combinedContext.includes("मिर्च") || combinedContext.includes("thrips")) {
       cropName = "Chilli / Mirch (मिर्च / Capsicum annuum)";
       diseaseOrPestName = "Chilli Leaf Curl Virus & Thrips Infestation";
       scientificName = "Begomovirus & Scirtothrips dorsalis";
@@ -1682,7 +1762,7 @@ Output STRICT JSON conforming to the schema.`;
       mixingPer15L = "15 ml in 15L Knapsack Tank";
       perAcre = "200 ml in 200 Liters water per acre";
       waitingDays = 5;
-    } else if (lowerCrop.includes("potato") || lowerCrop.includes("आलू")) {
+    } else if (combinedContext.includes("potato") || combinedContext.includes("आलू") || combinedContext.includes("late blight")) {
       cropName = "Potato (आलू / Solanum tuberosum)";
       diseaseOrPestName = "Late Blight (Phytophthora infestans)";
       scientificName = "Phytophthora infestans";
@@ -1698,7 +1778,7 @@ Output STRICT JSON conforming to the schema.`;
       mixingPer15L = "45 grams in 15L Knapsack Tank";
       perAcre = "600 grams in 200 Liters water per acre";
       waitingDays = 7;
-    } else if (lowerCrop.includes("maize") || lowerCrop.includes("corn") || lowerCrop.includes("मक्का")) {
+    } else if (combinedContext.includes("maize") || combinedContext.includes("corn") || combinedContext.includes("मक्का") || combinedContext.includes("armyworm")) {
       cropName = "Maize / Corn (मक्का / Zea mays)";
       diseaseOrPestName = "Fall Armyworm (Spodoptera frugiperda)";
       scientificName = "Spodoptera frugiperda";
@@ -1714,7 +1794,7 @@ Output STRICT JSON conforming to the schema.`;
       mixingPer15L = "6 - 8 grams in 15L Knapsack Tank";
       perAcre = "80-100 grams in 200 Liters water per acre directed into whorl";
       waitingDays = 10;
-    } else if (lowerCrop.includes("soybean") || lowerCrop.includes("सोयाबीन")) {
+    } else if (combinedContext.includes("soybean") || combinedContext.includes("सोयाबीन") || combinedContext.includes("mosaic")) {
       cropName = "Soybean (सोयाबीन / Glycine max)";
       diseaseOrPestName = "Yellow Mosaic Virus & Semilooper Pest";
       scientificName = "Mungbean Yellow Mosaic India Virus";
@@ -1725,11 +1805,59 @@ Output STRICT JSON conforming to the schema.`;
       ];
       chemicalName = "Thiamethoxam 12.6% + Lambda-cyhalothrin 9.5% ZC";
       activeIng = "Thiamethoxam + Lambda-cyhalothrin";
-      brands = ["Alika (Syngenta)", "Ampligo", "Voliam Flexi"],
+      brands = ["Alika (Syngenta)", "Ampligo", "Voliam Flexi"];
       mixingPerLiter = "0.5 ml per 1 Liter water";
       mixingPer15L = "8 ml in 15L Knapsack Tank";
       perAcre = "80-100 ml in 200 Liters water per acre";
       waitingDays = 14;
+    } else if (combinedContext.includes("onion") || combinedContext.includes("प्याज") || combinedContext.includes("purple blotch")) {
+      cropName = "Onion (प्याज / Allium cepa)";
+      diseaseOrPestName = "Purple Blotch (Alternaria porri) & Thrips";
+      scientificName = "Alternaria porri / Thrips tabaci";
+      symptoms = [
+        "Small water-soaked sunken lesions on leaf blades that turn deep purple with yellow halo",
+        "Silvery whitish patches on leaves caused by onion thrips feeding",
+        "Leaves break over at the point of purplish infection",
+      ];
+      chemicalName = "Difenoconazole 25% EC or Mancozeb 75% WP";
+      activeIng = "Difenoconazole 25% EC";
+      brands = ["Score (Syngenta)", "Dithane M-45", "Sectin"];
+      mixingPerLiter = "1 ml per 1 Liter water + 1 ml Sticker/Spreader";
+      mixingPer15L = "15 ml in 15L Knapsack Tank";
+      perAcre = "200 ml in 200 Liters water per acre";
+      waitingDays = 7;
+    } else if (combinedContext.includes("mustard") || combinedContext.includes("सरसों") || combinedContext.includes("aphid")) {
+      cropName = "Mustard (सरसों / Brassica juncea)";
+      diseaseOrPestName = "Mustard Aphid Infestation (Lipaphis erysimi)";
+      scientificName = "Lipaphis erysimi";
+      symptoms = [
+        "Dense colonies of greenish-brown soft-bodied aphids coating floral twigs and siliquae",
+        "Curling and yellowing of inflorescence with honeydew stickiness",
+        "Severe pod formation failure and poor oilseed filling",
+      ];
+      chemicalName = "Dimethoate 30% EC or Imidacloprid 17.8% SL";
+      activeIng = "Dimethoate 30% EC";
+      brands = ["Rogor", "Confidor", "Tafgor"];
+      mixingPerLiter = "1.5 ml per 1 Liter water";
+      mixingPer15L = "25 ml in 15L Knapsack Tank";
+      perAcre = "350 ml in 200 Liters water per acre";
+      waitingDays = 14;
+    } else if (combinedContext.includes("brinjal") || combinedContext.includes("eggplant") || combinedContext.includes("बैंगन") || combinedContext.includes("borer")) {
+      cropName = "Brinjal / Eggplant (बैंगन / Solanum melongena)";
+      diseaseOrPestName = "Shoot and Fruit Borer (Leucinodes orbonalis)";
+      scientificName = "Leucinodes orbonalis";
+      symptoms = [
+        "Drooping and withering of tender terminal shoots in young crop stage",
+        "Circular bore holes on fruits plugged with brownish caterpillar excreta",
+        "Rotting and unmarketable distorted brinjal fruits",
+      ];
+      chemicalName = "Chlorantraniliprole 18.5% SC or Spinosad 45% SC";
+      activeIng = "Chlorantraniliprole 18.5% SC";
+      brands = ["Coragen (FMC)", "Tracer", "Takumi"];
+      mixingPerLiter = "0.4 ml per 1 Liter water";
+      mixingPer15L = "6 ml in 15L Knapsack Tank";
+      perAcre = "60 ml in 200 Liters water per acre";
+      waitingDays = 3;
     }
 
     const fallbackDiagnosis = normalizeDiagnosisPayload({
@@ -1820,20 +1948,48 @@ app.post("/api/chat-expert", async (req: Request, res: Response) => {
 
     const lastUserMessage = messages[messages.length - 1]?.text || "Hello doctor, please help with my crop.";
 
-    const systemPrompt = `You are Dr. Ramesh Kumar Sharma, Senior Agronomist at Krishi Vigyan Kendra (KVK).
-You are speaking directly to a hardworking farmer named "${farmerProfile.fullName || 'Kisan Bhai'}" who owns ${farmerProfile.landSizeAcres || 4} acres in ${farmerProfile.villageLocation || 'Bathinda, Punjab'}.
-Their primary language is: ${language}.
-Their crops: ${(farmerProfile.mainCrops || []).join(", ") || 'Rice, Wheat, Cotton, Vegetables'}.
+    const systemPrompt = `You are Dr. Ramesh Kumar Sharma, Principal Senior Agronomist and Plant Protection Specialist at Krishi Vigyan Kendra (KVK), Indian Council of Agricultural Research (ICAR).
+You are consulting directly with a farmer named "${farmerProfile.fullName || 'Kisan Bhai'}" who farms ${farmerProfile.landSizeAcres || 4} acres in ${farmerProfile.villageLocation || 'Bathinda, Punjab'}.
+Target communication language: ${language}.
+Farmer's primary registered crops: ${(farmerProfile.mainCrops || []).join(", ") || 'Rice, Wheat, Cotton, Chilli, Potato, Onion, Mustard, Vegetables'}.
 
-Recent Plant Doctor Scan Context:
-${diagnosisContext ? JSON.stringify(diagnosisContext, null, 2) : 'No recent scan attached.'}
+======================================================================
+KVK CLINICAL AGRONOMY & EXTENSION PROTOCOLS:
+======================================================================
+1. INTERPERSONAL TONE & EMPATHY:
+   - Greet warmly with cultural respect ("Namaste / Sat Sri Akal / Vanakkam ${farmerProfile.fullName || 'Kisan Mitra'}!").
+   - Acknowledge their hard work, validate weather or disease stress, and provide reassuring, practical steps.
+   - Use simple, locally understood agricultural terminology (e.g. "15-Liter Peeth Wala Tank / Knapsack Sprayer", "Chammach / Level Spoons", "Ghol / Pre-mixture", "Khad / Urea / DAP / MOP / NPK").
 
-Guidelines for your response:
-1. Speak with warmth, deep respect, and practical clarity (use simple local farming terms).
-2. Give actionable step-by-step advice (e.g. exactly how many spoons or ml per 15-liter backpack tank, water timing, weather warnings).
-3. If they ask about medicine, specify exact active ingredients, dosages, and safety precautions.
-4. Keep the response concise, punchy, and formatted with bullet points for easy mobile reading and audio read-aloud.
-5. Answer in the farmer's language (${language}).`;
+2. EXACT TANK DOSAGES (15-Liter Knapsack Backpack Sprayer Standard):
+   - Fungicides (WP / WDG): 30-45 grams (approx. 6 to 8 level teaspoons) in 15L tank.
+   - Insecticides (EC / SL / SC): 5-15 ml (or 0.5-1.5 ml per liter water) depending on molecule.
+   - Bio-Pesticides (Neem Oil 10,000 PPM): 75 ml per 15L tank with 15 ml liquid surfactant/soap.
+   - Bio-Fungicides (Trichoderma / Pseudomonas): 100-150 grams per 15L tank.
+   - Water volume rule: Standard recommendation is 8 to 10 knapsack tanks (150-200 Liters water) per acre for full foliar canopy coverage.
+
+3. WEATHER & SAFE SPRAYING WINDOWS:
+   - Timing: Spray in calm morning (6:30 AM to 9:30 AM) or late afternoon (4:30 PM to 6:30 PM). Never spray in scorching midday heat (>35°C) to prevent phytotoxicity.
+   - Rain Fastness: Ensure 3-4 hours of rain-free forecast for systemic chemicals (e.g. Difenoconazole, Tricyclazole) and 6 hours for contact fungicides (e.g. Mancozeb, Copper Oxychloride).
+   - Wind Speed: Only spray when wind is calm (<10 km/h) to avoid spray drift and wastage.
+
+4. BALANCED FERTILIZER & NUTRITION:
+   - Basal: DAP + MOP + Zinc Sulphate (21% or 33%) as per soil test.
+   - Vegetative: Urea top-dressing in splits with neem coating; 19:19:19 foliar spray (5g/L).
+   - Flowering/Tillering: 12:61:00 or Boron 20% foliar spray to prevent flower drop.
+   - Grain/Bulb/Fruit Development: 00:00:50 (Potassium Sulphate) @ 5g/L for grain luster, test weight, and disease resistance.
+
+5. SCAN CONTEXT INTEGRATION:
+${diagnosisContext ? `Farmer's Active Plant Scan Result:
+- Crop: ${diagnosisContext.cropName}
+- Diagnosis: ${diagnosisContext.diseaseOrPestName} (${diagnosisContext.scientificName})
+- Severity: ${diagnosisContext.severity}
+- Recommended Remedy: ${diagnosisContext.primaryRemedy?.name} (${diagnosisContext.primaryRemedy?.activeIngredient})
+- 15L Tank Dose: ${diagnosisContext.primaryRemedy?.mixingRatio?.per15LTankGramsOrMl}
+- Organic Option: ${diagnosisContext.alternativeOrganicRemedy?.name}
+- Pre-Harvest Interval: ${diagnosisContext.primaryRemedy?.waitingPeriodDays} days` : 'No recent scan attached. Answer based on farmer description.'}
+
+Formatting: Use clean bullet points, bold key measurements, and avoid overly academic jargon. Answer natively in the requested language (${language}).`;
 
     // 1. Try Grok Chat if API key is provided
     if (grokKey) {
@@ -1864,10 +2020,13 @@ Guidelines for your response:
 Farmer's Message:
 "${lastUserMessage}"`;
 
-      // Try primary model then secondary model if rate limit / 429 quota occurs
+      // Try primary model then secondary models if rate limit / high demand occurs
       const candidateModels = [
         "gemini-3.7-flash",
         "gemini-3.1-flash-lite",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
       ];
 
       for (const modelName of candidateModels) {

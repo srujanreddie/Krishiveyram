@@ -520,6 +520,125 @@ export const SAMPLE_DIAGNOSES: PlantDiagnosisResult[] = [
     },
     imageUrl: 'https://images.unsplash.com/photo-1543257580-7269da773bf5?auto=format&fit=crop&w=800&q=80',
     farmerNote: 'Bright yellow powdery stripes spotted on flag leaves across 2 acres.'
+  },
+  {
+    id: 'sample_onion_purple_blotch',
+    scanTimestamp: new Date().toISOString(),
+    cropName: 'Onion (प्याज / வெங்காயம்)',
+    diseaseOrPestName: 'Purple Blotch & Thrips Complex',
+    scientificName: 'Alternaria porri & Thrips tabaci',
+    affectedPart: 'leaf',
+    severity: 'moderate',
+    confidenceScore: 93,
+    visualSymptoms: [
+      'Small water-soaked sunken lesions on leaf blades that turn deep purplish-brown with yellow halo',
+      'Silvery whitish flecks and rasping streaks caused by onion thrips',
+      'Leaves falling over at the point of purple necrotic lesion'
+    ],
+    causeExplanation: 'Fungal infection Alternaria porri thriving under warm, humid weather (28-30°C) with prolonged dew periods, aggravated by onion thrips feeding.',
+    primaryRemedy: {
+      remedyType: 'standard_chemical',
+      name: 'Difenoconazole 25% EC or Mancozeb 75% WP',
+      activeIngredient: 'Difenoconazole 25% EC',
+      brandExamples: ['Score (Syngenta)', 'Dithane M-45', 'Sectin'],
+      imageUrl: 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?auto=format&fit=crop&w=600&q=80',
+      safetyBadge: 'Low Toxicity',
+      mixingRatio: {
+        perLiterSpoons: 1,
+        perLiterGramsOrMl: '1.0 ml per 1 Liter water + 1 ml Spreader/Sticker (Apsa-80)',
+        per15LTankGramsOrMl: '15 ml Difenoconazole + 15 ml sticker in 15L tank',
+        perAcreRecommendation: '200 ml in 200 Liters of water per acre',
+        instructions: 'CRITICAL: Always add non-ionic wetting agent/sticker because onion leaves have a waxy cuticle that repels water drops.'
+      },
+      sprayTiming: {
+        bestTimeOfDay: 'early_morning',
+        recommendedHours: '7:00 AM to 9:30 AM',
+        rainSafetyHours: 4,
+        temperatureLimitCelsius: 32,
+        weatherAdvice: 'Spray when wind is calm (<10 km/h) to ensure full droplet adhesion.'
+      },
+      safetyEquipment: ['😷 Mask', '🧤 Chemical Gloves', '🥽 Goggles'],
+      waitingPeriodDays: 7,
+      culturalPractices: [
+        'Maintain clean field drainage to prevent standing water near bulb zone',
+        'Burn or deeply plow under crop residues after harvest',
+        'Follow 3-year crop rotation without Allium species'
+      ]
+    },
+    alternativeOrganicRemedy: {
+      remedyType: 'organic',
+      name: 'Trichoderma Harzianum + Neem Seed Kernel Extract (5%)',
+      activeIngredient: 'Trichoderma bio-fungicide + Azadirachtin',
+      brandExamples: ['Bio-Cure-F', 'Niprot', 'EcoNeem'],
+      imageUrl: 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?auto=format&fit=crop&w=600&q=80',
+      safetyBadge: 'Eco-Friendly',
+      mixingRatio: {
+        perLiterSpoons: 2,
+        perLiterGramsOrMl: '10 grams Trichoderma + 5 ml Neem per 1L water',
+        per15LTankGramsOrMl: '150 grams + 75 ml neem per 15L knapsack tank',
+        perAcreRecommendation: '1 kg Trichoderma in 200L water per acre',
+        instructions: 'Mix in non-chlorinated water and apply immediately in late afternoon.'
+      },
+      sprayTiming: {
+        bestTimeOfDay: 'late_afternoon',
+        recommendedHours: '4:30 PM to 6:30 PM',
+        rainSafetyHours: 6,
+        temperatureLimitCelsius: 30,
+        weatherAdvice: 'Apply during overcast or evening hours to promote bio-fungicide colonization.'
+      },
+      safetyEquipment: ['😷 Mask', '🧤 Gloves'],
+      waitingPeriodDays: 0,
+      culturalPractices: ['Apply neem cake (150 kg/acre) during field preparation']
+    },
+    imageUrl: 'https://images.unsplash.com/photo-1518977676601-b53f82aba655?auto=format&fit=crop&w=800&q=80',
+    farmerNote: 'Purplish lesions appearing on leaves near field irrigation ditch.'
+  },
+  {
+    id: 'sample_healthy_foliage',
+    scanTimestamp: new Date().toISOString(),
+    cropName: 'Healthy Crop Foliage (स्वस्थ फसल)',
+    diseaseOrPestName: 'Healthy Plant — No Disease or Pest Detected',
+    scientificName: 'Healthy Plant Organism',
+    affectedPart: 'leaf',
+    severity: 'low',
+    confidenceScore: 99,
+    visualSymptoms: [
+      'Vibrant uniform green leaf coloration with no necrotic spots or lesions',
+      'Intact leaf margins and healthy vein architecture without distortion or curling',
+      'No fungal pustules, bacterial ooze, webbing, or sucking insect colonies visible'
+    ],
+    causeExplanation: 'Excellent plant vigor and photosynthetic activity. Good crop nutrition and disease management currently maintained.',
+    primaryRemedy: {
+      remedyType: 'organic',
+      name: 'Seaweed Extract Bio-Stimulant & Micronutrient Tonic (Preventive Maintenance)',
+      activeIngredient: 'Ascophyllum nodosum Seaweed + Zinc & Boron Micronutrients',
+      brandExamples: ['Biovita (PI Industries)', 'Saagarika (IFFCO)', 'Quantis (Syngenta)'],
+      imageUrl: 'https://images.unsplash.com/photo-1530836369250-ef72a3f5cda8?auto=format&fit=crop&w=600&q=80',
+      safetyBadge: '100% Safe & Organic',
+      mixingRatio: {
+        perLiterSpoons: 1,
+        perLiterGramsOrMl: '2.0 ml per 1 Liter water',
+        per15LTankGramsOrMl: '30 ml per 15L backpack tank',
+        perAcreRecommendation: '400-500 ml in 200 Liters of water per acre',
+        instructions: 'Spray uniformly over healthy green foliage to boost chlorophyll, root growth, and natural immunity.'
+      },
+      sprayTiming: {
+        bestTimeOfDay: 'early_morning',
+        recommendedHours: '7:00 AM to 10:00 AM',
+        rainSafetyHours: 2,
+        temperatureLimitCelsius: 32,
+        weatherAdvice: 'Best sprayed when leaves are actively photosynthesizing in morning light.'
+      },
+      safetyEquipment: ['🧤 Standard Gardening Gloves'],
+      waitingPeriodDays: 0,
+      culturalPractices: [
+        'Maintain balanced NPK fertigation according to crop stage',
+        'Regularly scout field borders every 3-4 days to catch early pest arrivals',
+        'Ensure proper soil aeration and avoid root waterlogging'
+      ]
+    },
+    imageUrl: 'https://images.unsplash.com/photo-1530595467537-0b5996c41f2d?auto=format&fit=crop&w=800&q=80',
+    farmerNote: 'Routine check of 35-day healthy crop.'
   }
 ];
 

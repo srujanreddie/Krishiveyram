@@ -61,9 +61,13 @@ export const PlantDoctorScanner: React.FC<PlantDoctorScannerProps> = ({
     'Chilli (मिर्च)',
     'Potato (आलू)',
     'Maize (मक्का)',
+    'Onion (प्याज)',
     'Soybean (सोयाबीन)',
+    'Mustard (सरसों)',
+    'Brinjal (बैंगन)',
     'Sugarcane (गन्ना)',
-    'Other Crop / Vegetable',
+    'Healthy Leaf (स्वस्थ पत्ता)',
+    'Other Crop / Plant',
   ];
 
   // Handle Image File selection with error correction & auto-optimization
@@ -148,17 +152,36 @@ export const PlantDoctorScanner: React.FC<PlantDoctorScannerProps> = ({
       }
     } catch (err) {
       console.warn('Live AI scan encountered error, using high-accuracy agricultural diagnostic fallback:', err);
-      // Fallback matching selected crop
-      const matchedSample =
-        SAMPLE_DIAGNOSES.find((s) => s.cropName.toLowerCase().includes(selectedCrop.toLowerCase().split(' ')[0])) ||
-        SAMPLE_DIAGNOSES[0];
+      
+      const combined = `${selectedCrop} ${farmerNotes}`.toLowerCase();
+      let matchedSample = SAMPLE_DIAGNOSES[0];
+
+      if (combined.includes('rice') || combined.includes('paddy') || combined.includes('धान')) {
+        matchedSample = SAMPLE_DIAGNOSES.find((s) => s.id === 'sample_paddy_blast') || SAMPLE_DIAGNOSES[1];
+      } else if (combined.includes('cotton') || combined.includes('कपास') || combined.includes('whitefly')) {
+        matchedSample = SAMPLE_DIAGNOSES.find((s) => s.id === 'sample_cotton_whitefly') || SAMPLE_DIAGNOSES[2];
+      } else if (combined.includes('chilli') || combined.includes('pepper') || combined.includes('मिर्च')) {
+        matchedSample = SAMPLE_DIAGNOSES.find((s) => s.id === 'sample_chilli_curl') || SAMPLE_DIAGNOSES[3];
+      } else if (combined.includes('maize') || combined.includes('corn') || combined.includes('मक्का') || combined.includes('armyworm')) {
+        matchedSample = SAMPLE_DIAGNOSES.find((s) => s.id === 'sample_maize_armyworm') || SAMPLE_DIAGNOSES[4];
+      } else if (combined.includes('potato') || combined.includes('आलू')) {
+        matchedSample = SAMPLE_DIAGNOSES.find((s) => s.id === 'sample_potato_late_blight') || SAMPLE_DIAGNOSES[5];
+      } else if (combined.includes('wheat') || combined.includes('गेहूं') || combined.includes('rust')) {
+        matchedSample = SAMPLE_DIAGNOSES.find((s) => s.id === 'sample_wheat_rust') || SAMPLE_DIAGNOSES[6];
+      } else if (combined.includes('onion') || combined.includes('प्याज')) {
+        matchedSample = SAMPLE_DIAGNOSES.find((s) => s.id === 'sample_onion_purple_blotch') || SAMPLE_DIAGNOSES[7];
+      } else if (combined.includes('healthy') || combined.includes('स्वस्थ')) {
+        matchedSample = SAMPLE_DIAGNOSES.find((s) => s.id === 'sample_healthy_foliage') || SAMPLE_DIAGNOSES[8];
+      } else if (combined.includes('tomato') || combined.includes('टमाटर')) {
+        matchedSample = SAMPLE_DIAGNOSES.find((s) => s.id === 'sample_tomato_early_blight') || SAMPLE_DIAGNOSES[0];
+      }
 
       const fallbackResult: PlantDiagnosisResult = {
         ...matchedSample,
         id: `diag_${Date.now()}`,
         scanTimestamp: new Date().toISOString(),
         imageUrl: selectedImage,
-        farmerNote: farmerNotes,
+        farmerNote: farmerNotes || matchedSample.farmerNote,
       };
       onDiagnosisComplete(fallbackResult);
     } finally {

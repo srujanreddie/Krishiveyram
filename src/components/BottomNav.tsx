@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'motion/react';
 import { Home, ScanLine, FlaskConical, CloudSun, BookOpen, PhoneCall } from 'lucide-react';
 import { SupportedLanguage, UI_TEXTS } from '../utils/translations';
 
@@ -32,7 +33,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     <nav
       id="farmer-bottom-navigation"
       aria-label="Farmer Quick Navigation"
-      className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200/90 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] pb-safe"
+      className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] pb-safe"
     >
       <div className="max-w-4xl mx-auto px-2 flex items-center justify-around h-16 sm:h-18">
         {navItems.map((item) => {
@@ -42,17 +43,19 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           if (item.highlight) {
             // Scanner center floating button
             return (
-              <button
+              <motion.button
                 key={item.id}
                 id={`nav-${item.id}`}
                 onClick={() => onTabChange(item.id)}
+                whileTap={{ scale: 0.9 }}
+                whileHover={{ scale: 1.05 }}
                 className="relative -top-3 flex flex-col items-center group focus:outline-none"
               >
                 <div
-                  className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-all transform active:scale-95 ${
+                  className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-all ${
                     isActive
                       ? 'bg-gradient-to-tr from-emerald-700 to-emerald-500 text-white ring-4 ring-emerald-100 shadow-emerald-600/30'
-                      : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20 hover:scale-105'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'
                   }`}
                 >
                   <Icon className="w-7 h-7 stroke-[2.2]" />
@@ -64,22 +67,23 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 >
                   {item.label}
                 </span>
-              </button>
+              </motion.button>
             );
           }
 
           return (
-            <button
+            <motion.button
               key={item.id}
               id={`nav-${item.id}`}
               onClick={() => onTabChange(item.id)}
-              className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 relative rounded-xl transition active:scale-95 ${
+              whileTap={{ scale: 0.92 }}
+              className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 relative rounded-xl transition ${
                 isActive ? 'text-emerald-700 font-bold' : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               <div className="relative">
                 <Icon
-                  className={`w-5 h-5 sm:w-6 sm:h-6 transition-all ${
+                  className={`w-5 h-5 sm:w-6 sm:h-6 transition-transform duration-200 ${
                     isActive ? 'stroke-[2.4] text-emerald-700 scale-110' : 'stroke-[1.8]'
                   }`}
                 />
@@ -95,9 +99,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 {item.label}
               </span>
               {isActive && (
-                <div className="w-4 h-1 bg-emerald-600 rounded-full mt-0.5" />
+                <motion.div
+                  layoutId="activeTabIndicator"
+                  className="w-4 h-1 bg-emerald-600 rounded-full mt-0.5"
+                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                />
               )}
-            </button>
+            </motion.button>
           );
         })}
       </div>

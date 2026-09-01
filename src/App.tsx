@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   UserProfile,
   FarmDiaryEntry,
@@ -290,95 +291,145 @@ export default function App() {
       />
 
       {/* Main View Area */}
-      <main className="flex-1 max-w-4xl w-full mx-auto p-3 sm:p-4 md:p-6">
-        {activeTab === 'home' && (
-          <Dashboard
-            userProfile={userProfile}
-            currentLang={currentLang}
-            activeAlarms={activeAlarms}
-            todayWeather={forecast[0]}
-            weatherReport={weatherReport}
-            recentDiary={diaryEntries}
-            lastDiagnosis={currentDiagnosis}
-            onNavigate={(tab) => setActiveTab(tab)}
-            onSelectSampleDiagnosis={handleSelectSample}
-            onTriggerAutoDetect={handleAutoDetectLocation}
-            isDetectingLocation={isDetectingLocation}
-          />
-        )}
+      <main className="flex-1 max-w-4xl w-full mx-auto p-3 sm:p-4 md:p-6 overflow-x-hidden">
+        <AnimatePresence mode="wait">
+          {activeTab === 'home' && (
+            <motion.div
+              key="home"
+              initial={{ opacity: 0, y: 12, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.99 }}
+              transition={{ duration: 0.22, ease: [0.25, 1, 0.5, 1] }}
+            >
+              <Dashboard
+                userProfile={userProfile}
+                currentLang={currentLang}
+                activeAlarms={activeAlarms}
+                todayWeather={forecast[0]}
+                weatherReport={weatherReport}
+                recentDiary={diaryEntries}
+                lastDiagnosis={currentDiagnosis}
+                onNavigate={(tab) => setActiveTab(tab)}
+                onSelectSampleDiagnosis={handleSelectSample}
+                onTriggerAutoDetect={handleAutoDetectLocation}
+                isDetectingLocation={isDetectingLocation}
+              />
+            </motion.div>
+          )}
 
-        {activeTab === 'scanner' && (
-          <PlantDoctorScanner
-            currentLang={currentLang}
-            userProfile={userProfile}
-            onDiagnosisComplete={handleDiagnosisComplete}
-            onSelectSampleDiagnosis={handleSelectSample}
-          />
-        )}
+          {activeTab === 'scanner' && (
+            <motion.div
+              key="scanner"
+              initial={{ opacity: 0, y: 12, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.99 }}
+              transition={{ duration: 0.22, ease: [0.25, 1, 0.5, 1] }}
+            >
+              <PlantDoctorScanner
+                currentLang={currentLang}
+                userProfile={userProfile}
+                onDiagnosisComplete={handleDiagnosisComplete}
+                onSelectSampleDiagnosis={handleSelectSample}
+              />
+            </motion.div>
+          )}
 
-        {activeTab === 'medicine' && (
-          currentDiagnosis ? (
-            <StepByStepMedicineGuide
-              diagnosis={currentDiagnosis}
-              currentLang={currentLang}
-              onAddToDiary={handleAddRemedyToDiary}
-              onAskExpert={handleAskExpertFromDiagnosis}
-              onRescan={() => setActiveTab('scanner')}
-            />
-          ) : (
-            <div className="bg-white rounded-3xl p-8 text-center border border-slate-200 space-y-3">
-              <p className="text-sm font-bold text-slate-700">No plant scan available yet.</p>
-              <button
-                onClick={() => setActiveTab('scanner')}
-                className="px-5 py-2.5 bg-emerald-600 text-white font-bold rounded-xl text-xs"
-              >
-                Scan a Sick Leaf Now
-              </button>
-            </div>
-          )
-        )}
+          {activeTab === 'medicine' && (
+            <motion.div
+              key="medicine"
+              initial={{ opacity: 0, y: 12, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.99 }}
+              transition={{ duration: 0.22, ease: [0.25, 1, 0.5, 1] }}
+            >
+              {currentDiagnosis ? (
+                <StepByStepMedicineGuide
+                  diagnosis={currentDiagnosis}
+                  currentLang={currentLang}
+                  onAddToDiary={handleAddRemedyToDiary}
+                  onAskExpert={handleAskExpertFromDiagnosis}
+                  onRescan={() => setActiveTab('scanner')}
+                />
+              ) : (
+                <div className="bg-white rounded-3xl p-8 text-center border border-slate-200 space-y-3 shadow-sm">
+                  <p className="text-sm font-bold text-slate-700">No plant scan available yet.</p>
+                  <button
+                    onClick={() => setActiveTab('scanner')}
+                    className="px-5 py-2.5 bg-emerald-600 text-white font-bold rounded-xl text-xs hover:bg-emerald-700 transition active:scale-95 shadow-md shadow-emerald-600/20"
+                  >
+                    Scan a Sick Leaf Now
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          )}
 
-        {activeTab === 'weather' && (
-          <WeatherDangerAlarms
-            weatherReport={weatherReport}
-            forecast={forecast}
-            alarms={activeAlarms}
-            currentLang={currentLang}
-            userProfile={userProfile}
-            onLocationDetected={handleLocationDetectedManually}
-            onRefreshWeather={() =>
-              refreshWeatherReport(
-                undefined,
-                undefined,
-                userProfile.villageLocation,
-                userProfile.stateRegion,
-                currentLang,
-                userProfile.mainCrops
-              )
-            }
-            isDetectingLocation={isDetectingLocation}
-            onTriggerAutoDetect={handleAutoDetectLocation}
-          />
-        )}
+          {activeTab === 'weather' && (
+            <motion.div
+              key="weather"
+              initial={{ opacity: 0, y: 12, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.99 }}
+              transition={{ duration: 0.22, ease: [0.25, 1, 0.5, 1] }}
+            >
+              <WeatherDangerAlarms
+                weatherReport={weatherReport}
+                forecast={forecast}
+                alarms={activeAlarms}
+                currentLang={currentLang}
+                userProfile={userProfile}
+                onLocationDetected={handleLocationDetectedManually}
+                onRefreshWeather={() =>
+                  refreshWeatherReport(
+                    undefined,
+                    undefined,
+                    userProfile.villageLocation,
+                    userProfile.stateRegion,
+                    currentLang,
+                    userProfile.mainCrops
+                  )
+                }
+                isDetectingLocation={isDetectingLocation}
+                onTriggerAutoDetect={handleAutoDetectLocation}
+              />
+            </motion.div>
+          )}
 
-        {activeTab === 'diary' && (
-          <FarmDiary
-            diaryEntries={diaryEntries}
-            userProfile={userProfile}
-            currentLang={currentLang}
-            onAddEntry={handleCreateDiaryEntry}
-            onDeleteEntry={handleDeleteDiaryEntry}
-          />
-        )}
+          {activeTab === 'diary' && (
+            <motion.div
+              key="diary"
+              initial={{ opacity: 0, y: 12, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.99 }}
+              transition={{ duration: 0.22, ease: [0.25, 1, 0.5, 1] }}
+            >
+              <FarmDiary
+                diaryEntries={diaryEntries}
+                userProfile={userProfile}
+                currentLang={currentLang}
+                onAddEntry={handleCreateDiaryEntry}
+                onDeleteEntry={handleDeleteDiaryEntry}
+              />
+            </motion.div>
+          )}
 
-        {activeTab === 'helpline' && (
-          <ExpertHelpline
-            currentLang={currentLang}
-            userProfile={userProfile}
-            attachedDiagnosis={currentDiagnosis}
-            onClearDiagnosisAttachment={() => setCurrentDiagnosis(null)}
-          />
-        )}
+          {activeTab === 'helpline' && (
+            <motion.div
+              key="helpline"
+              initial={{ opacity: 0, y: 12, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.99 }}
+              transition={{ duration: 0.22, ease: [0.25, 1, 0.5, 1] }}
+            >
+              <ExpertHelpline
+                currentLang={currentLang}
+                userProfile={userProfile}
+                attachedDiagnosis={currentDiagnosis}
+                onClearDiagnosisAttachment={() => setCurrentDiagnosis(null)}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
 
       {/* Bottom Accessible Navigation */}
